@@ -1,0 +1,10 @@
+bin/
+web/node_modules/
+web/dist/
+
+# Books stay local; only the placeholder is tracked.
+ebook/*
+!ebook/.keep
+
+# Local deployment settings
+.env
