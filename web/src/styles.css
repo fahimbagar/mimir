@@ -1,0 +1,917 @@
+:root {
+  --paper: #f5efe6;
+  --paper-deep: #ede5d8;
+  --surface: #fbf8f3;
+  --ink: #37332d;
+  --ink-soft: #6f685e;
+  --muted: #a39b8f;
+  --line: #e4dbcd;
+
+  --sage: #7f9c8d;
+  --sage-deep: #5f8172;
+  --sage-soft: #dfe8e1;
+  --rose: #c98f88;
+  --rose-soft: #f4e1dd;
+  --lavender-soft: #e4e1f2;
+
+  --radius: 14px;
+  --shadow-book: 0 1px 2px rgb(55 51 45 / 0.08), 0 8px 20px -8px rgb(55 51 45 / 0.25);
+  --shadow-lift: 0 2px 4px rgb(55 51 45 / 0.08), 0 18px 32px -12px rgb(55 51 45 / 0.32);
+
+  --font-ui: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+}
+
+/* ---------- Shared bits ---------- */
+
+.notice {
+  margin: 48px auto;
+  max-width: 420px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 17px;
+}
+
+.notice-error {
+  color: #8a4b44;
+  background: var(--rose-soft);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  font-style: normal;
+  font-family: var(--font-ui);
+  font-size: 14px;
+}
+
+.pill {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.pill-epub {
+  background: var(--sage-soft);
+  color: #3f5a4c;
+}
+
+.pill-pdf {
+  background: var(--rose-soft);
+  color: #7a4842;
+}
+
+button.pill:hover {
+  border-color: currentColor;
+}
+
+.pill-static {
+  cursor: default;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--paper-deep);
+  border-radius: 999px;
+}
+
+.segmented button {
+  border: 0;
+  background: transparent;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.segmented button[aria-checked='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgb(55 51 45 / 0.12);
+}
+
+.segmented-icons button {
+  padding: 5px 10px;
+  display: grid;
+  place-items: center;
+}
+
+.segmented-icons svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---------- Library ---------- */
+
+.library {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 40px 32px 80px;
+}
+
+.library-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand-mark {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--sage);
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.08);
+}
+
+.brand-mark svg {
+  width: 34px;
+  height: 34px;
+  fill: var(--surface);
+  stroke: none;
+}
+
+.brand h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 560;
+  font-size: 34px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.brand p {
+  margin: 2px 0 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 14px;
+  height: 40px;
+  min-width: 260px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.search:focus-within {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 4px rgb(127 156 141 / 0.18);
+}
+
+.search svg {
+  width: 17px;
+  height: 17px;
+  color: var(--muted);
+  flex: none;
+}
+
+.search input {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+  width: 100%;
+}
+
+.search input::placeholder {
+  color: var(--muted);
+}
+
+.shelf {
+  margin-top: 40px;
+}
+
+.shelf h2 {
+  margin: 0 0 20px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 21px;
+  color: var(--ink);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 36px 28px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.card-cover {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 4px 8px 8px 4px;
+  transition: transform 0.25s ease;
+}
+
+.card-cover:hover {
+  transform: translateY(-4px);
+}
+
+.card-cover:hover .cover {
+  box-shadow: var(--shadow-lift);
+}
+
+.cover {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: 4px 8px 8px 4px;
+  overflow: hidden;
+  background: var(--paper-deep);
+  box-shadow: var(--shadow-book);
+  transition: box-shadow 0.25s ease;
+}
+
+/* A soft spine highlight so flat covers read as books. */
+.cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgb(0 0 0 / 0.1) 0,
+    rgb(255 255 255 / 0.18) 2.5%,
+    rgb(0 0 0 / 0.04) 5%,
+    transparent 9%
+  );
+  pointer-events: none;
+}
+
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cover-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px 16px 18px 22px;
+  text-align: left;
+}
+
+.cover-placeholder-rule {
+  width: 28px;
+  height: 2px;
+  opacity: 0.5;
+}
+
+.cover-placeholder-title {
+  font-family: var(--font-display);
+  font-weight: 560;
+  font-size: 17px;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cover-placeholder-author {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.card-progress {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  height: 4px;
+  border-radius: 99px;
+  background: rgb(251 248 243 / 0.7);
+  overflow: hidden;
+  backdrop-filter: blur(2px);
+}
+
+.card-progress span {
+  display: block;
+  height: 100%;
+  background: var(--sage-deep);
+  border-radius: inherit;
+}
+
+.card-body {
+  padding-top: 12px;
+}
+
+.card-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 15.5px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-author {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-formats {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+/* ---------- Reader ---------- */
+
+.reader {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-deep);
+}
+
+.reader-bar {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 2fr) 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: rgb(251 248 243 / 0.85);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(8px);
+}
+
+.reader-lead {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  padding: 7px 12px 7px 8px;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ghost-btn:hover {
+  background: var(--paper-deep);
+  color: var(--ink);
+}
+
+.ghost-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.icon-btn:hover {
+  background: var(--paper-deep);
+  color: var(--ink);
+}
+
+.icon-btn[aria-pressed='true'] {
+  background: var(--sage-soft);
+  color: #3f5a4c;
+}
+
+.icon-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
+.text-btn {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sage-deep);
+  border-radius: 6px;
+}
+
+.text-btn:hover {
+  background: var(--sage-soft);
+}
+
+.reader-title {
+  text-align: center;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.reader-title strong {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 560;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reader-title span {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.reader-actions {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reader-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+/* ---------- Bookmarks panel ---------- */
+
+.toc {
+  flex: none;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+
+.toc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px 10px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.toc-head h2 {
+  margin: 0;
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 17px;
+}
+
+.toc-head-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.toc-close {
+  display: none;
+}
+
+.toc-tree,
+.toc-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.toc-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 8px 24px;
+  overscroll-behavior: contain;
+}
+
+.toc-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  border-radius: 8px;
+  padding-right: 8px;
+}
+
+.toc-row:hover {
+  background: var(--paper);
+}
+
+.toc-row.is-active {
+  background: var(--sage-soft);
+}
+
+.toc-row.is-active .toc-link {
+  color: #3f5a4c;
+  font-weight: 560;
+}
+
+.toc-twisty {
+  flex: none;
+  width: 24px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--muted);
+}
+
+.toc-twisty svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s ease;
+}
+
+.toc-twisty.is-open svg {
+  transform: rotate(90deg);
+}
+
+.toc-link {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 6px 0;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.toc-page {
+  flex: none;
+  padding-top: 7px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.toc-link:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.toc-backdrop {
+  display: none;
+}
+
+.reader-surface {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.turn {
+  flex: none;
+  width: 56px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.turn:hover {
+  color: var(--sage-deep);
+  background: rgb(127 156 141 / 0.08);
+}
+
+.turn svg {
+  width: 26px;
+  height: 26px;
+}
+
+.pdf-stage,
+.epub-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.pdf-stage {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.pdf-stage .notice,
+.epub-stage .notice {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
+}
+
+.pdf-spread {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pdf-page {
+  display: block;
+  background: #fff;
+  border-radius: 3px;
+  box-shadow: var(--shadow-book);
+}
+
+.pdf-page-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pdf-page-num,
+.epub-pagenum {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.pdf-page-num {
+  margin-top: 8px;
+  line-height: 18px;
+}
+
+.epub-pagenum {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 28px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.pdf-spread.is-two .pdf-page-wrap:first-child .pdf-page {
+  border-radius: 3px 0 0 3px;
+  -webkit-mask-image: linear-gradient(90deg, #000 96%, rgb(0 0 0 / 0.86));
+  mask-image: linear-gradient(90deg, #000 96%, rgb(0 0 0 / 0.86));
+}
+
+.pdf-spread.is-two .pdf-page-wrap:last-child .pdf-page {
+  border-radius: 0 3px 3px 0;
+  -webkit-mask-image: linear-gradient(270deg, #000 96%, rgb(0 0 0 / 0.86));
+  mask-image: linear-gradient(270deg, #000 96%, rgb(0 0 0 / 0.86));
+}
+
+.epub-stage {
+  padding: 20px 0;
+}
+
+.epub-host {
+  height: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: 6px;
+  box-shadow: var(--shadow-book);
+  padding: 32px 40px;
+  transition: opacity 0.3s;
+}
+
+.epub-host.is-single {
+  max-width: 760px;
+}
+
+.epub-host.is-loading {
+  opacity: 0;
+}
+
+.reader-foot {
+  padding: 8px 20px 12px;
+  background: rgb(251 248 243 / 0.85);
+  border-top: 1px solid var(--line);
+}
+
+.progress {
+  height: 3px;
+  border-radius: 99px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  background: var(--sage);
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.reader-foot-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 7px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  min-height: 26px;
+}
+
+.reader-status {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-jump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.page-jump input {
+  width: 52px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: center;
+  font: inherit;
+  color: var(--ink);
+}
+
+.page-jump input:focus {
+  outline: 0;
+  border-color: var(--sage);
+}
+
+/* ---------- Small screens ---------- */
+
+@media (max-width: 900px) {
+  .toc {
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(320px, 86vw);
+    box-shadow: 0 12px 40px -8px rgb(55 51 45 / 0.35);
+  }
+
+  .toc-close {
+    display: grid;
+  }
+
+  .toc-backdrop {
+    display: block;
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    background: rgb(55 51 45 / 0.18);
+  }
+}
+
+@media (max-width: 720px) {
+  .library {
+    padding: 24px 16px 64px;
+  }
+
+  .toolbar,
+  .search {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 28px 16px;
+  }
+
+  .reader-bar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .ghost-btn span,
+  .reader-title span,
+  .reader-actions .pill {
+    display: none;
+  }
+
+  .turn {
+    width: 36px;
+  }
+
+  .epub-stage {
+    padding: 8px 0;
+  }
+
+  .epub-host {
+    padding: 20px 18px;
+  }
+}
