@@ -1,0 +1,18 @@
+services:
+  mimir:
+    build: .
+    image: mimir:latest
+    restart: unless-stopped
+    ports:
+      # Publish only on the address in MIMIR_BIND (localhost by default).
+      # Docker's port rules bypass firewalld, so binding to 0.0.0.0 would
+      # expose the library to every network the host is on.
+      - "${MIMIR_BIND:-127.0.0.1}:${MIMIR_PORT:-8080}:8080"
+    volumes:
+      # ro: the app never writes books. z: SELinux label so the container
+      # can read the folder on CentOS/RHEL.
+      - "${MIMIR_BOOKS:-./ebook}:/books:ro,z"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
