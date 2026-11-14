@@ -14,34 +14,67 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"mimir/internal/auth"
 	"mimir/internal/library"
+	"mimir/internal/store"
 )
 
 // Server serves the library API and the built frontend.
 type Server struct {
 	lib       *library.Library
+	store     *store.Store
+	auth      *auth.Auth
 	staticDir string
+	baseURL   string
 }
 
-// New returns a server for lib. staticDir holds the built frontend.
-func New(lib *library.Library, staticDir string) *Server {
-	return &Server{lib: lib, staticDir: staticDir}
+// New returns a server for lib. staticDir holds the built frontend and
+// baseURL is the public origin (see auth.ParseBaseURL).
+func New(lib *library.Library, st *store.Store, a *auth.Auth, staticDir, baseURL string) *Server {
+	return &Server{lib: lib, store: st, auth: a, staticDir: staticDir, baseURL: baseURL}
 }
 
 // Routes returns the HTTP handler.
-func (s *Server) Routes() http.Handler {
+func (s *Server) Routes() (http.Handler, error) {
 	r := chi.NewRouter()
 	// No RealIP middleware: without a trusted proxy in front, forwarded
 	// headers are client-controlled and would let anyone spoof log entries.
 	r.Use(middleware.Logger, middleware.Recoverer)
 
+	s.auth.Mount(r)
+	// Everything under /api, including the book files themselves, needs a
+	// signed-in, allowlisted user. The SPA shell stays public so the login
+	// page can load; it holds no data.
 	r.Route("/api", func(r chi.Router) {
+		r.Use(s.auth.RequireUser)
+		r.Get("/me", s.me)
 		r.Get("/books", s.listBooks)
 		r.Get("/files/{id}", s.serveFile)
 		r.Get("/files/{id}/cover", s.serveCover)
 	})
 	r.Handle("/*", s.spa())
-	return r
+
+	// Rejects cross-site POST/PUT/DELETE (CSRF) using Sec-Fetch-Site and
+	// Origin. The public origin is trusted explicitly because a reverse
+	// proxy may rewrite the Host header.
+	cop := http.NewCrossOriginProtection()
+	if err := cop.AddTrustedOrigin(s.baseURL); err != nil {
+		return nil, err
+	}
+	return cop.Handler(r), nil
+}
+
+func (s *Server) me(w http.ResponseWriter, r *http.Request) {
+	u, _ := auth.UserFrom(r.Context())
+	writeJSON(w, u)
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Warn("write json", "err", err)
+	}
 }
 
 func (s *Server) listBooks(w http.ResponseWriter, _ *http.Request) {
@@ -51,11 +84,7 @@ func (s *Server) listBooks(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "failed to scan library", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	if err := json.NewEncoder(w).Encode(books); err != nil {
-		slog.Warn("write books", "err", err)
-	}
+	writeJSON(w, books)
 }
 
 func (s *Server) serveFile(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +112,8 @@ func (s *Server) serveFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": f.Name}))
-	w.Header().Set("Cache-Control", "private, max-age=3600")
+	// Keep book bytes out of the browser's disk cache.
+	w.Header().Set("Cache-Control", "private, no-store")
 	// ServeContent handles Range requests, which pdf.js uses to load large
 	// PDFs piece by piece.
 	http.ServeContent(w, r, f.Name, st.ModTime(), fh)

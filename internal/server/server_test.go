@@ -2,6 +2,7 @@ package server
 
 import (
 	"archive/zip"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -10,13 +11,63 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
+
+	"mimir/internal/auth"
 	"mimir/internal/library"
+	"mimir/internal/store"
 )
 
 const pdfBody = "%PDF-1.4 0123456789"
 
-func newTestServer(t *testing.T, withStatic bool) (*httptest.Server, []library.Book) {
+const testUser = "reader@example.com"
+
+// newApp wires a server over lib with a real store and auth, and returns it
+// with a Cookie header value for a signed-in, allowlisted user.
+func newApp(t *testing.T, lib *library.Library, static string) (*httptest.Server, string) {
+	t.Helper()
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	a, err := auth.New(context.Background(), auth.Config{
+		BaseURL:       "https://mimir.example.com",
+		ClientID:      "id",
+		ClientSecret:  "secret",
+		AllowedEmails: []string{testUser},
+		// Never contacted: these tests don't go through Google.
+		Provider: &oidc.ProviderConfig{IssuerURL: "https://idp.invalid", JWKSURL: "https://idp.invalid/jwks"},
+	}, st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := st.UpsertUser(ctx, testUser, ""); err != nil {
+		t.Fatal(err)
+	}
+	token, err := st.CreateSession(ctx, testUser, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := New(lib, st, a, static, "https://mimir.example.com").Routes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(h)
+	t.Cleanup(ts.Close)
+	return ts, auth.SessionCookie + "=" + token
+}
+
+type testServer struct {
+	*httptest.Server
+	books   []library.Book
+	session map[string]string // headers that carry the session cookie
+}
+
+func newTestServer(t *testing.T, withStatic bool) testServer {
 	t.Helper()
 	books := t.TempDir()
 	if err := os.WriteFile(filepath.Join(books, "Some Book (Jane Doe).pdf"), []byte(pdfBody), 0o644); err != nil {
@@ -44,9 +95,8 @@ func newTestServer(t *testing.T, withStatic bool) (*httptest.Server, []library.B
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts := httptest.NewServer(New(lib, static).Routes())
-	t.Cleanup(ts.Close)
-	return ts, list
+	ts, cookie := newApp(t, lib, static)
+	return testServer{ts, list, map[string]string{"Cookie": cookie}}
 }
 
 type response struct {
@@ -57,7 +107,16 @@ type response struct {
 
 func get(t *testing.T, url string, header map[string]string) response {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	return send(t, http.MethodGet, url, header, "")
+}
+
+func send(t *testing.T, method, url string, header map[string]string, body string) response {
+	t.Helper()
+	var rd io.Reader
+	if body != "" {
+		rd = strings.NewReader(body)
+	}
+	req, err := http.NewRequest(method, url, rd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,16 +128,16 @@ func get(t *testing.T, url string, header map[string]string) response {
 		t.Fatal(err)
 	}
 	defer func() { _ = res.Body.Close() }()
-	body, err := io.ReadAll(res.Body)
+	raw, err := io.ReadAll(res.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return response{res.StatusCode, res.Header, string(body)}
+	return response{res.StatusCode, res.Header, string(raw)}
 }
 
 func TestListBooks(t *testing.T) {
-	ts, _ := newTestServer(t, true)
-	res := get(t, ts.URL+"/api/books", nil)
+	ts := newTestServer(t, true)
+	res := get(t, ts.URL+"/api/books", ts.session)
 	if res.status != http.StatusOK {
 		t.Fatalf("status %d", res.status)
 	}
@@ -95,10 +154,10 @@ func TestListBooks(t *testing.T) {
 }
 
 func TestServeFile(t *testing.T) {
-	ts, books := newTestServer(t, true)
-	id := books[0].Files[0].ID
+	ts := newTestServer(t, true)
+	id := ts.books[0].Files[0].ID
 
-	res := get(t, ts.URL+"/api/files/"+id, nil)
+	res := get(t, ts.URL+"/api/files/"+id, ts.session)
 	if res.status != http.StatusOK || res.body != pdfBody {
 		t.Fatalf("full read: %d %q", res.status, res.body)
 	}
@@ -110,22 +169,22 @@ func TestServeFile(t *testing.T) {
 	}
 
 	// pdf.js depends on byte ranges for large files.
-	res = get(t, ts.URL+"/api/files/"+id, map[string]string{"Range": "bytes=0-7"})
+	res = get(t, ts.URL+"/api/files/"+id, map[string]string{"Range": "bytes=0-7", "Cookie": ts.session["Cookie"]})
 	if res.status != http.StatusPartialContent || res.body != "%PDF-1.4" {
 		t.Errorf("range read: %d %q", res.status, res.body)
 	}
 }
 
 func TestNotFound(t *testing.T) {
-	ts, books := newTestServer(t, true)
-	pdfID := books[0].Files[0].ID
+	ts := newTestServer(t, true)
+	pdfID := ts.books[0].Files[0].ID
 	for _, path := range []string{
 		"/api/files/unknown",
 		"/api/files/" + pdfID + "/cover", // PDFs have no embedded cover
 		"/api/files/..%2f..%2fetc%2fpasswd",
 		"/api/nope", // unknown API routes must not fall through to the SPA
 	} {
-		res := get(t, ts.URL+path, nil)
+		res := get(t, ts.URL+path, ts.session)
 		if res.status != http.StatusNotFound {
 			t.Errorf("%s: status %d, want 404", path, res.status)
 		}
@@ -136,7 +195,7 @@ func TestNotFound(t *testing.T) {
 }
 
 func TestSPA(t *testing.T) {
-	ts, _ := newTestServer(t, true)
+	ts := newTestServer(t, true)
 
 	res := get(t, ts.URL+"/assets/app.js", nil)
 	if res.status != http.StatusOK || res.body != "console.log(1)" {
@@ -157,7 +216,7 @@ func TestSPA(t *testing.T) {
 }
 
 func TestSPAWithoutBuild(t *testing.T) {
-	ts, _ := newTestServer(t, false)
+	ts := newTestServer(t, false)
 	res := get(t, ts.URL+"/", nil)
 	if res.status != http.StatusNotFound || !strings.Contains(res.body, "frontend not built") {
 		t.Errorf("got %d %q", res.status, res.body)
@@ -200,10 +259,9 @@ func TestCoverIsSandboxed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts := httptest.NewServer(New(lib, t.TempDir()).Routes())
-	t.Cleanup(ts.Close)
+	ts, cookie := newApp(t, lib, t.TempDir())
 
-	res := get(t, ts.URL+"/api/files/"+books[0].Files[0].ID+"/cover", nil)
+	res := get(t, ts.URL+"/api/files/"+books[0].Files[0].ID+"/cover", map[string]string{"Cookie": cookie})
 	if res.status != http.StatusOK || res.header.Get("Content-Type") != "image/svg+xml" {
 		t.Fatalf("got %d %s", res.status, res.header.Get("Content-Type"))
 	}
@@ -212,5 +270,49 @@ func TestCoverIsSandboxed(t *testing.T) {
 	}
 	if res.header.Get("X-Content-Type-Options") != "nosniff" {
 		t.Error("missing nosniff")
+	}
+}
+
+func TestAPIRequiresSignIn(t *testing.T) {
+	ts := newTestServer(t, true)
+	id := ts.books[0].Files[0].ID
+	for _, path := range []string{"/api/me", "/api/books", "/api/files/" + id, "/api/files/" + id + "/cover"} {
+		for name, header := range map[string]map[string]string{
+			"no cookie":     nil,
+			"forged cookie": {"Cookie": auth.SessionCookie + "=forged"},
+		} {
+			res := get(t, ts.URL+path, header)
+			if res.status != http.StatusUnauthorized {
+				t.Errorf("%s (%s): status %d, want 401", path, name, res.status)
+			}
+			if strings.Contains(res.body, pdfBody) {
+				t.Errorf("%s (%s): leaked the book", path, name)
+			}
+		}
+	}
+}
+
+func TestMe(t *testing.T) {
+	ts := newTestServer(t, true)
+	res := get(t, ts.URL+"/api/me", ts.session)
+	if res.status != http.StatusOK || !strings.Contains(res.body, testUser) {
+		t.Errorf("got %d %q", res.status, res.body)
+	}
+}
+
+func TestCrossSiteWritesRejected(t *testing.T) {
+	ts := newTestServer(t, true)
+	header := map[string]string{
+		"Cookie":         ts.session["Cookie"],
+		"Origin":         "https://evil.example",
+		"Sec-Fetch-Site": "cross-site",
+	}
+	if res := send(t, http.MethodPost, ts.URL+"/auth/logout", header, ""); res.status != http.StatusForbidden {
+		t.Errorf("cross-site logout: status %d, want 403", res.status)
+	}
+	// Same-origin requests from the app itself still work.
+	header["Origin"], header["Sec-Fetch-Site"] = "https://mimir.example.com", "same-origin"
+	if res := send(t, http.MethodPost, ts.URL+"/auth/logout", header, ""); res.status != http.StatusNoContent {
+		t.Errorf("same-origin logout: status %d, want 204", res.status)
 	}
 }
