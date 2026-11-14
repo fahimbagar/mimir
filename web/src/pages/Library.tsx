@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { findFile, formatSize, loadBooks, type Book, type Format, type User } from '../api'
+import { findFile, formatSize, loadBooks, loadProgress, type Book, type Format, type ProgressEntry, type User } from '../api'
 import { Cover } from '../components/Cover'
 import { navigate } from '../router'
-import { getRecent } from '../storage'
 
 type Filter = 'all' | Format
 
-function openBook(book: Book) {
+function openBook(book: Book, progress: ProgressEntry[]) {
   // Reopen whichever format was read last, else the first one (EPUB sorts first).
-  const recent = getRecent().find((r) => book.files.some((f) => f.id === r.fileId))
-  navigate(`/read/${recent?.fileId ?? book.files[0].id}`)
+  const last = progress.find((p) => book.files.some((f) => f.id === p.fileId))
+  navigate(`/read/${last?.fileId ?? book.files[0].id}`)
 }
 
-function BookCard({ book, progress }: { book: Book; progress?: number }) {
+function BookCard({ book, history, progress }: { book: Book; history: ProgressEntry[]; progress?: number }) {
   return (
     <article className="card">
-      <button className="card-cover" onClick={() => openBook(book)} aria-label={`Open ${book.title}`}>
+      <button className="card-cover" onClick={() => openBook(book, history)} aria-label={`Open ${book.title}`}>
         <Cover book={book} />
         {progress != null && (
           <span className="card-progress" aria-hidden>
@@ -50,10 +49,13 @@ export function Library({ user, onSignOut }: { user: User; onSignOut: () => void
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const [history, setHistory] = useState<ProgressEntry[]>([])
 
   useEffect(() => {
     document.title = 'Mimir Library'
     loadBooks(true).then(setBooks, (e: Error) => setError(e.message))
+    // The shelf still works without it, so a failure only loses "Continue reading".
+    loadProgress().then(setHistory, (e: Error) => console.warn(e.message))
   }, [])
 
   const shown = useMemo(() => {
@@ -70,7 +72,7 @@ export function Library({ user, onSignOut }: { user: User; onSignOut: () => void
     if (!books) return []
     const seen = new Set<string>()
     const out: Array<{ book: Book; progress: number }> = []
-    for (const r of getRecent()) {
+    for (const r of history) {
       const hit = findFile(books, r.fileId)
       if (hit && !seen.has(hit.book.id)) {
         seen.add(hit.book.id)
@@ -78,7 +80,7 @@ export function Library({ user, onSignOut }: { user: User; onSignOut: () => void
       }
     }
     return out.slice(0, 6)
-  }, [books])
+  }, [books, history])
 
   const searching = query.trim() !== '' || filter !== 'all'
 
@@ -138,7 +140,7 @@ export function Library({ user, onSignOut }: { user: User; onSignOut: () => void
           <h2>Continue reading</h2>
           <div className="grid">
             {recent.map(({ book, progress }) => (
-              <BookCard key={book.id} book={book} progress={progress} />
+              <BookCard key={book.id} book={book} history={history} progress={progress} />
             ))}
           </div>
         </section>
@@ -154,7 +156,7 @@ export function Library({ user, onSignOut }: { user: User; onSignOut: () => void
           ) : (
             <div className="grid">
               {shown.map((b) => (
-                <BookCard key={b.id} book={b} />
+                <BookCard key={b.id} book={b} history={history} />
               ))}
             </div>
           )}

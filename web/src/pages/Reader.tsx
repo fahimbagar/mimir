@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
-import { findFile, loadBooks, type Book, type BookFile } from '../api'
+import { findFile, loadBooks, loadProgress, saveProgress, type Book, type BookFile } from '../api'
 import { OutlinePanel } from '../components/OutlinePanel'
 import { EpubReader } from '../readers/EpubReader'
 import { PdfReader } from '../readers/PdfReader'
@@ -12,7 +12,6 @@ import {
   setPageNumbers,
   setSpread as saveSpread,
   setTocOpen,
-  touchRecent,
   type Spread,
 } from '../storage'
 
@@ -74,7 +73,7 @@ function toggleFullscreen() {
 }
 
 export function Reader({ fileId }: { fileId: string }) {
-  const [hit, setHit] = useState<{ book: Book; file: BookFile } | null>(null)
+  const [hit, setHit] = useState<{ book: Book; file: BookFile; start?: number | string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [spread, setSpreadState] = useState<Spread>(getSpread)
   const surfaceRef = useRef<HTMLDivElement>(null)
@@ -86,27 +85,67 @@ export function Reader({ fileId }: { fileId: string }) {
   const [outline, setOutline] = useState<OutlineItem[]>([])
   const [tocOpen, setTocOpenState] = useState(getTocOpen)
 
+  // Positions are saved to the server a moment after the reader stops on a
+  // page, and right away when the tab is hidden or closed.
+  const pending = useRef<{ position: number | string; progress: number } | null>(null)
+  const lastProgress = useRef(0)
+  const saveTimer = useRef(0)
+
   // App keys this component by fileId, so switching books starts fresh.
   useEffect(() => {
-    loadBooks().then(
-      (books) => {
+    Promise.all([loadBooks(), loadProgress()]).then(
+      ([books, progress]) => {
         const found = findFile(books, fileId)
-        if (found) {
-          setHit(found)
-          document.title = `${found.book.title} · Mimir`
-        } else setError('This book is no longer on the shelf.')
+        if (!found) {
+          setError('This book is no longer on the shelf.')
+          return
+        }
+        const saved = progress.find((p) => p.fileId === fileId)
+        lastProgress.current = saved?.progress ?? 0
+        setHit({ ...found, start: saved?.position })
+        document.title = `${found.book.title} · Mimir`
       },
       (e: Error) => setError(e.message),
     )
   }, [fileId])
 
-  const onStatus = useCallback(
-    (s: ReaderStatus) => {
-      setStatus(s)
-      touchRecent(fileId, s.progress)
+  const flush = useCallback(
+    (keepalive = false) => {
+      window.clearTimeout(saveTimer.current)
+      const p = pending.current
+      if (!p) return
+      pending.current = null
+      saveProgress(fileId, p.position, p.progress, keepalive).catch((e: Error) => console.warn(e.message))
     },
     [fileId],
   )
+
+  const onStatus = useCallback(
+    (s: ReaderStatus) => {
+      setStatus(s)
+      // An EPUB reports progress only once its pages are counted; until then
+      // keep the last known value instead of resetting it to 0.
+      if (s.progress != null) lastProgress.current = s.progress
+      pending.current = { position: s.position, progress: lastProgress.current }
+      window.clearTimeout(saveTimer.current)
+      saveTimer.current = window.setTimeout(() => flush(), 1500)
+    },
+    [flush],
+  )
+
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') flush(true)
+    }
+    const onPageHide = () => flush(true)
+    document.addEventListener('visibilitychange', onHidden)
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden)
+      window.removeEventListener('pagehide', onPageHide)
+      flush(true)
+    }
+  }, [flush])
 
   const showToc = (open: boolean) => {
     setTocOpenState(open)
@@ -287,6 +326,7 @@ export function Reader({ fileId }: { fileId: string }) {
             <PdfReader
               key={fileId}
               fileId={fileId}
+              initialPosition={hit.start}
               spread={shownSpread}
               controllerRef={controllerRef}
               onStatus={onStatus}
@@ -298,6 +338,7 @@ export function Reader({ fileId }: { fileId: string }) {
             <EpubReader
               key={fileId}
               fileId={fileId}
+              initialPosition={hit.start}
               spread={shownSpread}
               controllerRef={controllerRef}
               onStatus={onStatus}

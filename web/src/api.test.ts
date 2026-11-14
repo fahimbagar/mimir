@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { findFile, formatSize, loadBooks, type Book } from './api'
+import { findFile, formatSize, loadBooks, loadProgress, saveProgress, setUnauthorizedHandler, type Book } from './api'
 
 const books: Book[] = [
   {
@@ -51,5 +51,31 @@ describe('loadBooks', () => {
     vi.stubGlobal('fetch', fetchMock)
     await expect(loadBooks(true)).rejects.toThrow('HTTP 500')
     await expect(loadBooks()).resolves.toHaveLength(1)
+  })
+})
+
+describe('progress', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    setUnauthorizedHandler(null)
+  })
+
+  it('saves with PUT and a JSON body, keepalive on request', async () => {
+    const fetchMock = vi.fn<typeof fetch>(() => Promise.resolve(new Response(null, { status: 204 })))
+    vi.stubGlobal('fetch', fetchMock)
+    await saveProgress('f1', 'epubcfi(/6/4)', 0.5, true)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/progress/f1')
+    expect(init?.method).toBe('PUT')
+    expect(init?.keepalive).toBe(true)
+    expect(JSON.parse(init?.body as string)).toEqual({ position: 'epubcfi(/6/4)', progress: 0.5 })
+  })
+
+  it('reports an expired session to the app', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('{}', { status: 401 }))))
+    const onUnauthorized = vi.fn()
+    setUnauthorizedHandler(onUnauthorized)
+    await expect(loadProgress()).rejects.toThrow('sign in')
+    expect(onUnauthorized).toHaveBeenCalledOnce()
   })
 })

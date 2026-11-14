@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import ePub, { EpubCFI, type Book, type Rendition } from 'epubjs'
 import type { Location } from 'epubjs/types/rendition'
 import { fileUrl } from '../api'
-import { getLocations, getPosition, setLocations, setPosition } from '../storage'
+import { getLocations, setLocations } from '../storage'
 import { flattenOutline, fromEpubToc, itemForHref, sectionStartPage, withPages } from './outline'
 import type { OutlineItem, ReaderProps } from './types'
 
@@ -14,12 +14,13 @@ const spreadMode = (s: 1 | 2) => (s === 2 ? 'always' : 'none')
 // location, the ~1600-character chunks epub.js already computes for progress.
 const CHARS_PER_PAGE = 1600
 
-export function EpubReader({ fileId, spread, controllerRef, onStatus, onOutline, showPageNumbers }: ReaderProps) {
+export function EpubReader({ fileId, initialPosition, spread, controllerRef, onStatus, onOutline, showPageNumbers }: ReaderProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const renditionRef = useRef<Rendition | null>(null)
   const emitStatus = useEffectEvent(onStatus)
   const emitOutline = useEffectEvent(onOutline)
   const initialSpread = useRef(spread)
+  const startAt = useRef(typeof initialPosition === 'string' ? initialPosition : undefined)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [shownPages, setShownPages] = useState<[number, number] | null>(null)
@@ -50,7 +51,8 @@ export function EpubReader({ fileId, spread, controllerRef, onStatus, onOutline,
           : `Page ${loc.start.displayed.page} of ${loc.start.displayed.total} in chapter`
       emitStatus({
         label: item ? `${item.label} · ${where}` : where,
-        progress: loc.atEnd ? 1 : (pct ?? 0),
+        position: loc.start.cfi,
+        progress: loc.atEnd ? 1 : pct,
         page: first,
         pages: ready ? locs.length() : undefined,
         outlineId: item?.id,
@@ -85,10 +87,7 @@ export function EpubReader({ fileId, spread, controllerRef, onStatus, onOutline,
         '::selection': { background: '#dfe8e1' },
         img: { 'max-width': '100%' },
       })
-      rendition.on('relocated', (loc: Location) => {
-        setPosition(fileId, loc.start.cfi)
-        report(loc)
-      })
+      rendition.on('relocated', (loc: Location) => report(loc))
       // Key presses inside the book's iframe never reach our window listener.
       rendition.on('keydown', (e: KeyboardEvent) => {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: e.key }))
@@ -99,7 +98,7 @@ export function EpubReader({ fileId, spread, controllerRef, onStatus, onOutline,
       flat = flattenOutline(outline)
       emitOutline(outline)
 
-      await rendition.display(getPosition<string>(fileId) ?? undefined)
+      await rendition.display(startAt.current)
       if (abort.signal.aborted) return
       setLoading(false)
 

@@ -1,7 +1,6 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 import { openPdf } from '../pdf'
-import { getPosition, setPosition } from '../storage'
 import { flattenOutline } from './outline'
 import { nextPage, pagesInView, prevPage } from './spread'
 import type { OutlineItem, ReaderProps } from './types'
@@ -49,12 +48,12 @@ async function loadOutline(doc: PDFDocumentProxy): Promise<OutlineItem[]> {
   return root ? convert(root, '') : []
 }
 
-export function PdfReader({ fileId, spread, controllerRef, onStatus, onOutline, showPageNumbers }: ReaderProps) {
+export function PdfReader({ fileId, initialPosition, spread, controllerRef, onStatus, onOutline, showPageNumbers }: ReaderProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [page, setPage] = useState(() => getPosition<number>(fileId) ?? 1)
+  const [page, setPage] = useState(() => (typeof initialPosition === 'number' ? initialPosition : 1))
   const [size, setSize] = useState({ w: 0, h: 0 })
   const emitStatus = useEffectEvent(onStatus)
   const emitOutline = useEffectEvent(onOutline)
@@ -110,18 +109,18 @@ export function PdfReader({ fileId, spread, controllerRef, onStatus, onOutline, 
 
   useEffect(() => {
     if (!total) return
-    setPosition(fileId, page)
     const last = view[view.length - 1]
     let outlineId: string | undefined
     for (const it of outline) if (it.page != null && it.page <= last) outlineId = it.id
     emitStatus({
       label: view.length > 1 ? `Pages ${view[0]}–${last} of ${total}` : `Page ${view[0]} of ${total}`,
+      position: page,
       progress: total > 1 ? (last - 1) / (total - 1) : 1,
       page: view[0],
       pages: total,
       outlineId,
     })
-  }, [fileId, page, total, view, outline])
+  }, [page, total, view, outline])
 
   useEffect(() => {
     if (!total) return

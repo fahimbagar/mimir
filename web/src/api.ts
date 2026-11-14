@@ -66,6 +66,31 @@ export function loadBooks(refresh = false): Promise<Book[]> {
   return cached
 }
 
+export interface ProgressEntry {
+  fileId: string
+  position: number | string // PDF page or EPUB CFI
+  progress: number
+  updatedAt: string
+}
+
+// Most recently read first.
+export async function loadProgress(): Promise<ProgressEntry[]> {
+  const res = await api('/api/progress')
+  if (!res.ok) throw new Error(`Could not load reading progress (HTTP ${res.status})`)
+  return (await res.json()) as ProgressEntry[]
+}
+
+// keepalive lets the request finish while the tab is closing.
+export async function saveProgress(fileId: string, position: number | string, progress: number, keepalive = false) {
+  const res = await api(`/api/progress/${fileId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ position, progress }),
+    keepalive,
+  })
+  if (!res.ok) throw new Error(`Could not save progress (HTTP ${res.status})`)
+}
+
 export const fileUrl = (fileId: string) => `/api/files/${fileId}`
 export const coverUrl = (fileId: string) => `/api/files/${fileId}/cover`
 

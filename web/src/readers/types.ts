@@ -19,7 +19,8 @@ export interface ReaderController {
 
 export interface ReaderStatus {
   label: string
-  progress: number // 0..1
+  position: number | string // what to save: PDF page or EPUB CFI
+  progress: number | null // 0..1, null while an EPUB is still being measured
   page?: number // PDF: real page. EPUB: computed page, once known.
   pages?: number
   outlineId?: string // the bookmark the reader is currently inside
@@ -27,6 +28,7 @@ export interface ReaderStatus {
 
 export interface ReaderProps {
   fileId: string
+  initialPosition?: number | string // from the server; PDF page or EPUB CFI
   spread: Spread // already reduced to 1 when the reading area is too narrow
   controllerRef: RefObject<ReaderController | null>
   onStatus: (s: ReaderStatus) => void

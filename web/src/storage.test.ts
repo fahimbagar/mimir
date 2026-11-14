@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getPosition, getRecent, getSpread, setPosition, setSpread, touchRecent } from './storage'
+import { getLocations, getPageNumbers, getSpread, setLocations, setPageNumbers, setSpread } from './storage'
 
 function memoryStorage(): Storage {
   const m = new Map<string, string>()
@@ -25,28 +25,21 @@ describe('storage', () => {
     expect(getSpread()).toBe(1)
   })
 
-  it('round-trips positions of either type', () => {
-    setPosition('pdf', 42)
-    setPosition('epub', 'epubcfi(/6/4!/4/2)')
-    expect(getPosition<number>('pdf')).toBe(42)
-    expect(getPosition<string>('epub')).toBe('epubcfi(/6/4!/4/2)')
-    expect(getPosition('missing')).toBeNull()
+  it('shows page numbers until turned off', () => {
+    expect(getPageNumbers()).toBe(true)
+    setPageNumbers(false)
+    expect(getPageNumbers()).toBe(false)
   })
 
-  it('keeps recent books newest first, without duplicates, capped at 12', () => {
-    for (let i = 0; i < 14; i++) touchRecent(`f${i}`, i / 100)
-    touchRecent('f5')
-    const recent = getRecent()
-    expect(recent).toHaveLength(12)
-    expect(recent[0].fileId).toBe('f5')
-    expect(recent[0].progress).toBe(0.05) // kept when no new progress is given
-    expect(recent.filter((r) => r.fileId === 'f5')).toHaveLength(1)
-    expect(recent.map((r) => r.fileId)).not.toContain('f0')
+  it('caches EPUB locations per file', () => {
+    setLocations('f1', '["epubcfi(/6/2)"]')
+    expect(getLocations('f1')).toBe('["epubcfi(/6/2)"]')
+    expect(getLocations('f2')).toBeNull()
   })
 
-  it('falls back to defaults when storage is unreadable or blocked', () => {
-    localStorage.setItem('mimir:recent', '{not json')
-    expect(getRecent()).toEqual([])
+  it('falls back to defaults when storage is corrupt or blocked', () => {
+    localStorage.setItem('mimir:spread', '{not json')
+    expect(getSpread()).toBe(2)
 
     vi.stubGlobal('localStorage', {
       getItem: () => {
@@ -57,6 +50,6 @@ describe('storage', () => {
       },
     })
     expect(getSpread()).toBe(2)
-    expect(() => touchRecent('x')).not.toThrow()
+    expect(() => setSpread(1)).not.toThrow()
   })
 })
