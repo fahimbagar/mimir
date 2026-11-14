@@ -6,6 +6,7 @@ web/dist/
 # Books stay local; only the placeholder is tracked.
 ebook/*
 !ebook/.keep
+!ebook/README.md
 
 # Local deployment settings
 .env
