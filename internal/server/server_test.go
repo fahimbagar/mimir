@@ -316,3 +316,67 @@ func TestCrossSiteWritesRejected(t *testing.T) {
 		t.Errorf("same-origin logout: status %d, want 204", res.status)
 	}
 }
+
+func TestProgress(t *testing.T) {
+	ts := newTestServer(t, true)
+	id := ts.books[0].Files[0].ID
+	write := map[string]string{"Cookie": ts.session["Cookie"], "Content-Type": "application/json", "Sec-Fetch-Site": "same-origin"}
+
+	res := get(t, ts.URL+"/api/progress", ts.session)
+	if res.status != http.StatusOK || strings.TrimSpace(res.body) != "[]" {
+		t.Fatalf("empty list: %d %q", res.status, res.body)
+	}
+
+	if res := send(t, http.MethodPut, ts.URL+"/api/progress/"+id, write, `{"position": 12, "progress": 0.25}`); res.status != http.StatusNoContent {
+		t.Fatalf("save: %d %q", res.status, res.body)
+	}
+	if res := send(t, http.MethodPut, ts.URL+"/api/progress/"+id, write, `{"position": "epubcfi(/6/4!/4/2)", "progress": 0.5}`); res.status != http.StatusNoContent {
+		t.Fatalf("save string: %d %q", res.status, res.body)
+	}
+
+	res = get(t, ts.URL+"/api/progress", ts.session)
+	var list []struct {
+		FileID   string          `json:"fileId"`
+		Position json.RawMessage `json:"position"`
+		Progress float64         `json:"progress"`
+	}
+	if err := json.Unmarshal([]byte(res.body), &list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].FileID != id || string(list[0].Position) != `"epubcfi(/6/4!/4/2)"` || list[0].Progress != 0.5 {
+		t.Errorf("unexpected list: %s", res.body)
+	}
+}
+
+func TestProgressRejectsBadInput(t *testing.T) {
+	ts := newTestServer(t, true)
+	id := ts.books[0].Files[0].ID
+	write := map[string]string{"Cookie": ts.session["Cookie"], "Sec-Fetch-Site": "same-origin"}
+	for name, body := range map[string]string{
+		"not json":       `{`,
+		"no position":    `{"progress": 0.5}`,
+		"zero page":      `{"position": 0, "progress": 0.5}`,
+		"fractional":     `{"position": 1.5, "progress": 0.5}`,
+		"object":         `{"position": {"a": 1}, "progress": 0.5}`,
+		"empty string":   `{"position": "", "progress": 0.5}`,
+		"progress > 1":   `{"position": 3, "progress": 1.5}`,
+		"negative":       `{"position": 3, "progress": -0.1}`,
+		"unknown field":  `{"position": 3, "progress": 0.1, "email": "other@example.com"}`,
+		"huge position":  `{"position": "` + strings.Repeat("x", 5000) + `", "progress": 0.1}`,
+		"oversized body": `{"position": 3, "progress": 0.1, "pad": "` + strings.Repeat("x", 9000) + `"}`,
+	} {
+		if res := send(t, http.MethodPut, ts.URL+"/api/progress/"+id, write, body); res.status != http.StatusBadRequest {
+			t.Errorf("%s: status %d, want 400", name, res.status)
+		}
+	}
+	if res := send(t, http.MethodPut, ts.URL+"/api/progress/unknown", write, `{"position": 3, "progress": 0.1}`); res.status != http.StatusNotFound {
+		t.Errorf("unknown file: status %d, want 404", res.status)
+	}
+	if res := send(t, http.MethodPut, ts.URL+"/api/progress/"+id, map[string]string{"Sec-Fetch-Site": "same-origin"}, `{"position": 3, "progress": 0.1}`); res.status != http.StatusUnauthorized {
+		t.Errorf("no session: status %d, want 401", res.status)
+	}
+	cross := map[string]string{"Cookie": ts.session["Cookie"], "Origin": "https://evil.example", "Sec-Fetch-Site": "cross-site"}
+	if res := send(t, http.MethodPut, ts.URL+"/api/progress/"+id, cross, `{"position": 3, "progress": 0.1}`); res.status != http.StatusForbidden {
+		t.Errorf("cross-site: status %d, want 403", res.status)
+	}
+}

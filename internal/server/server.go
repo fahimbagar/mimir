@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
 	"mime"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -49,6 +51,8 @@ func (s *Server) Routes() (http.Handler, error) {
 		r.Use(s.auth.RequireUser)
 		r.Get("/me", s.me)
 		r.Get("/books", s.listBooks)
+		r.Get("/progress", s.listProgress)
+		r.Put("/progress/{id}", s.saveProgress)
 		r.Get("/files/{id}", s.serveFile)
 		r.Get("/files/{id}/cover", s.serveCover)
 	})
@@ -67,6 +71,90 @@ func (s *Server) Routes() (http.Handler, error) {
 func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	u, _ := auth.UserFrom(r.Context())
 	writeJSON(w, u)
+}
+
+type progressJSON struct {
+	FileID    string          `json:"fileId"`
+	Position  json.RawMessage `json:"position"`
+	Progress  float64         `json:"progress"`
+	UpdatedAt time.Time       `json:"updatedAt"`
+}
+
+func (s *Server) listProgress(w http.ResponseWriter, r *http.Request) {
+	u, _ := auth.UserFrom(r.Context())
+	list, err := s.store.ListProgress(r.Context(), u.Email, 100)
+	if err != nil {
+		slog.Error("list progress", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	out := make([]progressJSON, len(list))
+	for i, p := range list {
+		out[i] = progressJSON{p.FileID, json.RawMessage(p.Position), p.Progress, p.UpdatedAt}
+	}
+	writeJSON(w, out)
+}
+
+// A CFI is rarely over a few hundred characters.
+const maxPositionLen = 2048
+
+func (s *Server) saveProgress(w http.ResponseWriter, r *http.Request) {
+	u, _ := auth.UserFrom(r.Context())
+	id := chi.URLParam(r, "id")
+	if _, err := s.lib.File(id); err != nil {
+		s.notFoundOr500(w, err)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
+	var body struct {
+		Position json.RawMessage `json:"position"`
+		Progress float64         `json:"progress"`
+	}
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	pos, ok := canonicalPosition(body.Position)
+	if !ok || math.IsNaN(body.Progress) || body.Progress < 0 || body.Progress > 1 {
+		http.Error(w, "position must be a page number or a short string, progress 0..1", http.StatusBadRequest)
+		return
+	}
+	err := s.store.SaveProgress(r.Context(), u.Email, store.Progress{FileID: id, Position: pos, Progress: body.Progress})
+	if err != nil {
+		slog.Error("save progress", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// canonicalPosition accepts a page number (PDF) or a non-empty string (EPUB
+// CFI) and re-encodes it, so only clean JSON reaches the database.
+func canonicalPosition(raw json.RawMessage) (string, bool) {
+	if len(raw) == 0 || len(raw) > maxPositionLen {
+		return "", false
+	}
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return "", false
+	}
+	switch p := v.(type) {
+	case float64:
+		if p < 1 || p != math.Trunc(p) || p > 1e7 {
+			return "", false
+		}
+	case string:
+		if p == "" {
+			return "", false
+		}
+	default:
+		return "", false
+	}
+	out, err := json.Marshal(v)
+	return string(out), err == nil
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
