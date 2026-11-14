@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -39,9 +40,9 @@ func New(lib *library.Library, st *store.Store, a *auth.Auth, staticDir, baseURL
 // Routes returns the HTTP handler.
 func (s *Server) Routes() (http.Handler, error) {
 	r := chi.NewRouter()
-	// No RealIP middleware: without a trusted proxy in front, forwarded
-	// headers are client-controlled and would let anyone spoof log entries.
-	r.Use(middleware.Logger, middleware.Recoverer)
+	// No RealIP middleware: forwarded headers are client-controlled unless a
+	// trusted proxy sets them, and would let anyone spoof log entries.
+	r.Use(requestLog, middleware.Recoverer, securityHeaders(strings.HasPrefix(s.baseURL, "https://")))
 
 	s.auth.Mount(r)
 	// Everything under /api, including the book files themselves, needs a

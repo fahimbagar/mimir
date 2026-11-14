@@ -2,9 +2,11 @@ package server
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -378,5 +380,52 @@ func TestProgressRejectsBadInput(t *testing.T) {
 	cross := map[string]string{"Cookie": ts.session["Cookie"], "Origin": "https://evil.example", "Sec-Fetch-Site": "cross-site"}
 	if res := send(t, http.MethodPut, ts.URL+"/api/progress/"+id, cross, `{"position": 3, "progress": 0.1}`); res.status != http.StatusForbidden {
 		t.Errorf("cross-site: status %d, want 403", res.status)
+	}
+}
+
+func TestSecurityHeaders(t *testing.T) {
+	ts := newTestServer(t, true)
+	for _, c := range []struct {
+		path   string
+		header map[string]string
+	}{
+		{"/", nil},
+		{"/read/abc", nil},
+		{"/api/books", nil},        // 401
+		{"/api/books", ts.session}, // 200
+	} {
+		res := get(t, ts.URL+c.path, c.header)
+		for name, want := range map[string]string{
+			"X-Content-Type-Options":    "nosniff",
+			"X-Frame-Options":           "DENY",
+			"Referrer-Policy":           "no-referrer",
+			"Strict-Transport-Security": "max-age=63072000",
+		} {
+			if got := res.header.Get(name); got != want {
+				t.Errorf("%s: %s = %q, want %q", c.path, name, got, want)
+			}
+		}
+		csp := res.header.Get("Content-Security-Policy")
+		for _, part := range []string{"script-src 'self'", "frame-ancestors 'none'", "object-src 'none'"} {
+			if !strings.Contains(csp, part) {
+				t.Errorf("%s: CSP %q lacks %q", c.path, csp, part)
+			}
+		}
+	}
+}
+
+func TestLogsOmitQueryStrings(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	ts := newTestServer(t, true)
+	get(t, ts.URL+"/auth/callback?code=secret-oauth-code&state=s", nil)
+	if strings.Contains(buf.String(), "secret-oauth-code") {
+		t.Errorf("OAuth code leaked into logs:\n%s", buf.String())
+	}
+	if !strings.Contains(buf.String(), "path=/auth/callback") {
+		t.Errorf("request not logged:\n%s", buf.String())
 	}
 }
