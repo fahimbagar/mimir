@@ -1,5 +1,9 @@
 version: "2"
 
+run:
+  # Also lint the dev-only login (internal/auth/devlogin.go).
+  build-tags: [dev]
+
 linters:
   # standard set (errcheck, govet, ineffassign, staticcheck, unused) plus:
   enable:
