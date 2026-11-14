@@ -64,6 +64,10 @@ function PageJump({ status, goTo }: { status: ReaderStatus; goTo: (n: number) =>
 // hides the reader's own bars there; only the browser's stay.
 const canFullscreen = typeof document !== 'undefined' && document.fullscreenEnabled
 
+// The PDF magnifier follows a mouse, so it's offered only where one is the
+// main pointer.
+const canMagnify = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+
 // Below this reading-area width the margins around pages are trimmed.
 const COMPACT_WIDTH = 600
 
@@ -79,6 +83,7 @@ export function Reader({ fileId }: { fileId: string }) {
   const [showNums, setShowNums] = useState(getPageNumbers)
   const [outline, setOutline] = useState<OutlineItem[]>([])
   const [tocOpen, setTocOpenState] = useState(getTocOpen)
+  const [magnify, setMagnify] = useState(false)
 
   // Positions are saved to the server a moment after the reader stops on a
   // page, and right away when the tab is hidden or closed.
@@ -194,6 +199,8 @@ export function Reader({ fileId }: { fileId: string }) {
     }
   }
 
+  const showMagnifier = canMagnify && hit?.file.format === 'pdf'
+
   const togglePageNumbers = () => {
     setShowNums(!showNums)
     setPageNumbers(!showNums)
@@ -223,7 +230,15 @@ export function Reader({ fileId }: { fileId: string }) {
       case 'f':
         toggleImmersive()
         break
+      case 'm':
+        if (!showMagnifier) return
+        setMagnify((m) => !m)
+        break
       case 'Escape':
+        if (magnify) {
+          setMagnify(false)
+          break
+        }
         if (immersive) {
           toggleImmersive()
           break
@@ -275,6 +290,18 @@ export function Reader({ fileId }: { fileId: string }) {
         </div>
         <div className="reader-actions">
           {hit && <span className={`pill pill-${hit.file.format} pill-static`}>{hit.file.format.toUpperCase()}</span>}
+          {showMagnifier && (
+            <button
+              className="icon-btn"
+              aria-pressed={magnify}
+              title={magnify ? 'Hide magnifier (M)' : 'Magnifier (M)'}
+              onClick={() => setMagnify(!magnify)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d="M17 11a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM15.5 15.5 20 20M11 8.5v5M8.5 11h5" />
+              </svg>
+            </button>
+          )}
           <button
             className="icon-btn"
             aria-pressed={showNums}
@@ -339,6 +366,7 @@ export function Reader({ fileId }: { fileId: string }) {
               onOutline={setOutline}
               showPageNumbers={showNums}
               compact={immersive || surfaceWidth < COMPACT_WIDTH}
+              magnify={magnify}
             />
           )}
           {hit?.file.format === 'epub' && (

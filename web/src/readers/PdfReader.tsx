@@ -10,6 +10,11 @@ const PAD = 24
 const PAD_COMPACT = 6
 // Room for the page number caption under each page.
 const NUM_SPACE = 26
+// Magnifier: how much the lens enlarges, and its diameter in CSS pixels.
+const MAGNIFY = 2.5
+const LENS = 240
+// Browsers refuse or blank canvases past roughly this many pixels.
+const MAX_CANVAS_PIXELS = 16_777_216
 
 type PdfOutlineNode = Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number]
 type PdfRef = Parameters<PDFDocumentProxy['getPageIndex']>[0]
@@ -49,6 +54,10 @@ async function loadOutline(doc: PDFDocumentProxy): Promise<OutlineItem[]> {
   return root ? convert(root, '') : []
 }
 
+interface PdfReaderProps extends ReaderProps {
+  magnify?: boolean
+}
+
 export function PdfReader({
   fileId,
   initialPosition,
@@ -58,9 +67,11 @@ export function PdfReader({
   onOutline,
   showPageNumbers,
   compact = false,
-}: ReaderProps) {
+  magnify = false,
+}: PdfReaderProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
+  const lensRef = useRef<HTMLCanvasElement>(null)
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(() => (typeof initialPosition === 'number' ? initialPosition : 1))
@@ -174,7 +185,12 @@ export function PdfReader({
       const rendered = await Promise.all(
         pages.map(async (p, i) => {
           const css = p.getViewport({ scale })
-          const vp = p.getViewport({ scale: scale * dpr })
+          // With the magnifier on, draw the page at lens resolution so the
+          // lens copies real pixels instead of stretching screen ones.
+          const boost = magnify
+            ? Math.max(1, Math.min(MAGNIFY, Math.sqrt(MAX_CANVAS_PIXELS / (css.width * css.height * dpr * dpr))))
+            : 1
+          const vp = p.getViewport({ scale: scale * dpr * boost })
           const canvas = document.createElement('canvas')
           canvas.className = 'pdf-page'
           canvas.width = Math.floor(vp.width)
@@ -209,16 +225,65 @@ export function PdfReader({
       cancelled = true
       tasks.forEach((t) => t.cancel())
     }
-  }, [doc, size.w, size.h, view, showPageNumbers, compact])
+  }, [doc, size.w, size.h, view, showPageNumbers, compact, magnify])
+
+  useEffect(() => {
+    const lens = lensRef.current
+    if (!magnify || !lens) return
+    const ctx = lens.getContext('2d')
+    if (!ctx) return
+    const dpr = window.devicePixelRatio || 1
+    lens.width = lens.height = Math.round(LENS * dpr)
+    let frame = 0
+    let x = 0
+    let y = 0
+
+    const hide = () => {
+      lens.hidden = true
+    }
+    const draw = () => {
+      frame = 0
+      const pages = pagesRef.current?.querySelectorAll<HTMLCanvasElement>('canvas.pdf-page') ?? []
+      for (const page of pages) {
+        const r = page.getBoundingClientRect()
+        if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue
+        // Page canvas pixels per CSS pixel on screen.
+        const ratio = page.width / r.width
+        const side = (LENS / MAGNIFY) * ratio
+        ctx.clearRect(0, 0, lens.width, lens.height)
+        ctx.drawImage(page, (x - r.left) * ratio - side / 2, (y - r.top) * ratio - side / 2, side, side, 0, 0, lens.width, lens.height)
+        lens.style.transform = `translate(${x - LENS / 2}px, ${y - LENS / 2}px)`
+        lens.hidden = false
+        return
+      }
+      hide()
+    }
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return
+      x = e.clientX
+      y = e.clientY
+      if (!frame) frame = requestAnimationFrame(draw)
+    }
+
+    window.addEventListener('pointermove', onMove)
+    document.documentElement.addEventListener('mouseleave', hide)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('pointermove', onMove)
+      document.documentElement.removeEventListener('mouseleave', hide)
+      hide()
+    }
+  }, [magnify])
 
   return (
-    <div className="pdf-stage" ref={stageRef}>
+    <div className={`pdf-stage ${magnify ? 'is-magnifying' : ''}`} ref={stageRef}>
       {error ? (
         <div className="notice notice-error">Could not open this PDF: {error}</div>
       ) : !doc ? (
         <div className="notice">Opening book…</div>
       ) : null}
       <div className={`pdf-spread ${view.length > 1 ? 'is-two' : ''}`} ref={pagesRef} />
+      <canvas className="pdf-lens" ref={lensRef} hidden aria-hidden />
     </div>
   )
 }

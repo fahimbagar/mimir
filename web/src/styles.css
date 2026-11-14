@@ -827,6 +827,32 @@ button.pill:hover {
   box-shadow: var(--shadow-book);
 }
 
+.pdf-stage.is-magnifying .pdf-page {
+  cursor: none;
+}
+
+/* Fixed so it can spill past the page and stage edges; it follows the
+   pointer via transform. */
+.pdf-lens {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #fff;
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 12px 32px -8px rgb(55 51 45 / 0.4);
+  pointer-events: none;
+}
+
+.pdf-lens[hidden] {
+  display: none;
+}
+
 .pdf-page-wrap {
   display: flex;
   flex-direction: column;
