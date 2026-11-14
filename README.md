@@ -1,5 +1,8 @@
 # Mimir
 
+[![CI](https://github.com/fahimbagar/mimir/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fahimbagar/mimir/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A private ebook library for your own PDF and EPUB files. Readers sign in with an invited Google account. A Go (chi) server serves the books, a small JSON API and a SQLite database of reading progress. The React + TypeScript frontend renders PDFs with pdf.js and EPUBs with epub.js.
 
 ## Features
