@@ -4,15 +4,28 @@ services:
     image: mimir:latest
     restart: unless-stopped
     ports:
-      # Publish only on the address in MIMIR_BIND (localhost by default).
-      # Docker's port rules bypass firewalld, so binding to 0.0.0.0 would
-      # expose the library to every network the host is on.
+      # Your reverse proxy (Caddy, nginx, ...) serves https://example.dev
+      # and forwards to this port. Bound to localhost by default so the app is
+      # only reachable through the proxy. Docker's port rules bypass firewalld,
+      # so don't use 0.0.0.0 here.
       - "${MIMIR_BIND:-127.0.0.1}:${MIMIR_PORT:-8080}:8080"
+    environment:
+      MIMIR_BASE_URL: ${MIMIR_BASE_URL:-https://example.dev}
+      MIMIR_ALLOWED_EMAILS: ${MIMIR_ALLOWED_EMAILS:?set MIMIR_ALLOWED_EMAILS in .env}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in .env}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?set GOOGLE_CLIENT_SECRET in .env}
     volumes:
       # ro: the app never writes books. z: SELinux label so the container
       # can read the folder on CentOS/RHEL.
-      - "${MIMIR_BOOKS:-./ebook}:/books:ro,z"
+      - "${MIMIR_BOOKS_DIR:-./ebook}:/books:ro,z"
+      # Users, sessions and reading progress (SQLite).
+      - mimir-data:/data
     read_only: true
+    tmpfs:
+      - /tmp # SQLite's scratch space; the root filesystem is read-only
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+
+volumes:
+  mimir-data:
