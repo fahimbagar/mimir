@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { findFile, formatSize, loadBooks, type Book, type Format } from '../api'
+import { findFile, formatSize, loadBooks, type Book, type Format, type User } from '../api'
 import { Cover } from '../components/Cover'
 import { navigate } from '../router'
 import { getRecent } from '../storage'
@@ -45,7 +45,7 @@ function BookCard({ book, progress }: { book: Book; progress?: number }) {
   )
 }
 
-export function Library() {
+export function Library({ user, onSignOut }: { user: User; onSignOut: () => void }) {
   const [books, setBooks] = useState<Book[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -115,6 +115,17 @@ export function Library() {
                 {f === 'all' ? 'All' : f.toUpperCase()}
               </button>
             ))}
+          </div>
+          <div className="account">
+            <span className="avatar" aria-hidden>
+              {user.email.charAt(0).toUpperCase()}
+            </span>
+            <span className="account-email" title={user.email}>
+              {user.email}
+            </span>
+            <button className="text-btn" onClick={onSignOut}>
+              Sign out
+            </button>
           </div>
         </div>
       </header>

@@ -411,6 +411,106 @@ button.pill:hover {
   margin-top: 10px;
 }
 
+.account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.avatar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--sage-soft);
+  color: #3f5a4c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.account-email {
+  font-size: 13px;
+  color: var(--ink-soft);
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Login ---------- */
+
+.login {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.login-card {
+  width: min(400px, 100%);
+  padding: 40px 32px 32px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow-book);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.login-card h1 {
+  margin: 4px 0 0;
+  font-family: var(--font-display);
+  font-weight: 560;
+  font-size: 32px;
+}
+
+.login-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14.5px;
+}
+
+.login-card .notice {
+  margin: 4px 0 0;
+  max-width: none;
+  width: 100%;
+}
+
+.google-btn {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 500;
+  font-size: 14.5px;
+  text-decoration: none;
+  transition:
+    box-shadow 0.15s,
+    border-color 0.15s;
+}
+
+.google-btn:hover {
+  border-color: var(--muted);
+  box-shadow: 0 2px 8px rgb(55 51 45 / 0.12);
+}
+
+.google-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: none;
+}
+
 /* ---------- Reader ---------- */
 
 .reader {
