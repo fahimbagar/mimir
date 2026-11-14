@@ -25,6 +25,8 @@ jobs:
         with:
           version: v2.15.0
       - run: go test -race ./...
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   web:
     runs-on: ubuntu-latest
