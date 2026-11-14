@@ -50,6 +50,22 @@ Mimir runs behind your own reverse proxy, which handles HTTPS for `example.dev`.
    ```
    No other headers are needed. The app takes its public address from `MIMIR_BASE_URL`, not from forwarded headers.
 
+   To log visitors' addresses instead of the proxy's, have the proxy set `X-Real-IP` and tell the app which address the proxy connects from. With Compose that's the Docker network gateway, the address in the `remote=` field of the logs (for example `172.20.0.1`):
+   ```sh
+   MIMIR_TRUSTED_PROXIES=172.20.0.1    # in .env
+   ```
+   For Caddy, add `header_up X-Real-IP {client_ip}` inside `reverse_proxy`. For nginx, add `proxy_set_header X-Real-IP $remote_addr;`. The header must be set by the proxy, never passed through from the client. Requests from any other address keep only `remote=`.
+
+   If the site is behind Cloudflare, Caddy sees Cloudflare's servers as the client. Tell it to trust them and read `CF-Connecting-IP`, in the global options block at the top of the Caddyfile:
+   ```
+   {
+       servers {
+           trusted_proxies static <ranges from https://www.cloudflare.com/ips/>
+           client_ip_headers CF-Connecting-IP
+       }
+   }
+   ```
+
 Compose refuses to start if a required variable is missing. The image is a static binary on distroless and runs as a non-root user with a read-only filesystem. Books are mounted read-only. The database lives in the `mimir-data` volume. To back it up, stop the app briefly so the SQLite write-ahead log is folded in, then copy the files:
 
 ```sh

@@ -8,6 +8,7 @@ import (
 	"math"
 	"mime"
 	"net/http"
+	"net/netip"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,6 +30,7 @@ type Server struct {
 	auth      *auth.Auth
 	staticDir string
 	baseURL   string
+	proxies   []netip.Prefix
 }
 
 // New returns a server for lib. staticDir holds the built frontend and
@@ -37,12 +39,21 @@ func New(lib *library.Library, st *store.Store, a *auth.Auth, staticDir, baseURL
 	return &Server{lib: lib, store: st, auth: a, staticDir: staticDir, baseURL: baseURL}
 }
 
+// TrustProxies lets requests from these addresses name the visitor in
+// X-Real-IP, for the request log only. The proxy must overwrite that header,
+// never pass on one sent by the client.
+func (s *Server) TrustProxies(nets []netip.Prefix) *Server {
+	s.proxies = nets
+	return s
+}
+
 // Routes returns the HTTP handler.
 func (s *Server) Routes() (http.Handler, error) {
 	r := chi.NewRouter()
 	// No RealIP middleware: forwarded headers are client-controlled unless a
-	// trusted proxy sets them, and would let anyone spoof log entries.
-	r.Use(requestLog, middleware.Recoverer, securityHeaders(strings.HasPrefix(s.baseURL, "https://")))
+	// trusted proxy sets them, and would let anyone spoof log entries. The
+	// request log reads X-Real-IP itself, from TrustProxies addresses only.
+	r.Use(requestLog(s.proxies), middleware.Recoverer, securityHeaders(strings.HasPrefix(s.baseURL, "https://")))
 
 	s.auth.Mount(r)
 	// Everything under /api, including the book files themselves, needs a

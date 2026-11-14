@@ -14,6 +14,7 @@ services:
       MIMIR_ALLOWED_EMAILS: ${MIMIR_ALLOWED_EMAILS:?set MIMIR_ALLOWED_EMAILS in .env}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in .env}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?set GOOGLE_CLIENT_SECRET in .env}
+      MIMIR_TRUSTED_PROXIES: ${MIMIR_TRUSTED_PROXIES:-}
     volumes:
       # ro: the app never writes books. z: SELinux label so the container
       # can read the folder on CentOS/RHEL.

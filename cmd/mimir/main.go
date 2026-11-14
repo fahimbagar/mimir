@@ -40,9 +40,14 @@ func run() error {
 	static := flag.String("static", env("MIMIR_STATIC", "./web/dist"), "built frontend directory")
 	dbPath := flag.String("db", env("MIMIR_DB", "./data/mimir.db"), "SQLite database file")
 	baseURL := flag.String("base-url", env("MIMIR_BASE_URL", "https://example.dev"), "public origin, used for the Google redirect")
+	trusted := flag.String("trusted-proxies", env("MIMIR_TRUSTED_PROXIES", ""), "comma-separated IPs/CIDRs whose X-Real-IP header is logged as the client address")
 	flag.Parse()
 
 	base, err := auth.ParseBaseURL(*baseURL)
+	if err != nil {
+		return err
+	}
+	proxies, err := server.ParseProxies(*trusted)
 	if err != nil {
 		return err
 	}
@@ -71,7 +76,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	handler, err := server.New(lib, st, a, *static, base).Routes()
+	handler, err := server.New(lib, st, a, *static, base).TrustProxies(proxies).Routes()
 	if err != nil {
 		return err
 	}

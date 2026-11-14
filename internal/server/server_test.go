@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -427,5 +428,57 @@ func TestLogsOmitQueryStrings(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "path=/auth/callback") {
 		t.Errorf("request not logged:\n%s", buf.String())
+	}
+}
+
+func TestParseProxies(t *testing.T) {
+	got, err := ParseProxies(" 172.20.0.1, 10.1.2.3/8 ,,::ffff:192.0.2.9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"172.20.0.1/32", "10.0.0.0/8", "192.0.2.9/32"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i].String() != want[i] {
+			t.Errorf("entry %d: got %s, want %s", i, got[i], want[i])
+		}
+	}
+	if _, err := ParseProxies("caddy"); err == nil {
+		t.Error("hostname accepted as a trusted proxy")
+	}
+}
+
+func TestClientAddr(t *testing.T) {
+	trusted, err := ParseProxies("172.20.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name, remote, realIP string
+		trusted              bool
+		want                 string
+	}{
+		{"from proxy", "172.20.0.1:50316", "203.0.113.7", true, "203.0.113.7"},
+		{"from proxy, IPv6 visitor", "172.20.0.1:50316", "2001:db8::1", true, "2001:db8::1"},
+		{"spoofed by a direct client", "198.51.100.4:4000", "203.0.113.7", true, ""},
+		{"no proxies configured", "172.20.0.1:50316", "203.0.113.7", false, ""},
+		{"proxy sent garbage", "172.20.0.1:50316", "203.0.113.7\nremote=1.2.3.4", true, ""},
+		{"proxy sent nothing", "172.20.0.1:50316", "", true, ""},
+	}
+	for _, c := range cases {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.RemoteAddr = c.remote
+		if c.realIP != "" {
+			r.Header.Set("X-Real-IP", c.realIP)
+		}
+		var nets []netip.Prefix
+		if c.trusted {
+			nets = trusted
+		}
+		if got := clientAddr(r, nets); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
 	}
 }
