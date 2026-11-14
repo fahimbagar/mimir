@@ -514,7 +514,9 @@ button.pill:hover {
 /* ---------- Reader ---------- */
 
 .reader {
+  position: relative;
   height: 100%;
+  height: 100dvh; /* mobile: follow the visible area as browser bars come and go */
   display: flex;
   flex-direction: column;
   background: var(--paper-deep);
@@ -949,6 +951,127 @@ button.pill:hover {
   border-color: var(--sage);
 }
 
+/* ---------- Full screen (immersive) ---------- */
+
+.reader.is-immersive {
+  background: #e9e1d3;
+}
+
+.reader.is-immersive .reader-bar,
+.reader.is-immersive .reader-foot,
+.reader.is-immersive .toc,
+.reader.is-immersive .toc-backdrop {
+  display: none;
+}
+
+/* Page turns become invisible tap zones over the page edges. */
+.reader.is-immersive .turn {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 22%;
+  color: transparent;
+  background: transparent;
+}
+
+.reader.is-immersive .turn-prev {
+  left: 0;
+  justify-items: start;
+  padding-left: 12px;
+}
+
+.reader.is-immersive .turn-next {
+  right: 0;
+  justify-items: end;
+  padding-right: 12px;
+}
+
+@media (hover: hover) {
+  .reader.is-immersive .turn:hover {
+    color: var(--ink-soft);
+  }
+}
+
+.reader.is-immersive .epub-stage {
+  padding: 0;
+}
+
+.reader.is-immersive .epub-host {
+  max-width: 1600px;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 24px 40px;
+}
+
+.reader.is-immersive .epub-host.is-single {
+  max-width: 920px;
+}
+
+.reader.is-immersive .epub-pagenum {
+  bottom: 10px;
+}
+
+.immersive-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.immersive-exit {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  pointer-events: auto;
+  background: rgb(251 248 243 / 0.8);
+  box-shadow: 0 1px 4px rgb(55 51 45 / 0.15);
+  opacity: 0.55;
+  transition: opacity 0.2s;
+}
+
+.immersive-exit:hover,
+.immersive-exit:focus-visible {
+  opacity: 1;
+}
+
+.immersive-status {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 60%;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgb(251 248 243 / 0.7);
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
+.immersive-status:empty {
+  display: none;
+}
+
+.immersive-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: rgb(55 51 45 / 0.08);
+}
+
+.immersive-progress span {
+  display: block;
+  height: 100%;
+  background: var(--sage);
+  transition: width 0.3s ease;
+}
+
 /* ---------- Small screens ---------- */
 
 @media (max-width: 900px) {
@@ -1003,15 +1126,36 @@ button.pill:hover {
     display: none;
   }
 
+  /* Arrows as side columns eat a fifth of a phone screen; overlay them as
+     tap zones instead so the page can use the full width. */
   .turn {
-    width: 36px;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 3;
+    width: 18%;
+    color: transparent;
+    background: transparent;
+  }
+
+  .turn-prev {
+    left: 0;
+  }
+
+  .turn-next {
+    right: 0;
   }
 
   .epub-stage {
-    padding: 8px 0;
+    padding: 6px 0;
   }
 
   .epub-host {
-    padding: 20px 18px;
+    border-radius: 0;
+    padding: 18px 16px;
+  }
+
+  .reader.is-immersive .epub-host {
+    padding: 14px 14px 22px;
   }
 }

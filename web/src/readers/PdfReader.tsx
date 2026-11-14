@@ -7,6 +7,7 @@ import type { OutlineItem, ReaderProps } from './types'
 
 // Breathing room around the page(s); facing pages touch like a real spread.
 const PAD = 24
+const PAD_COMPACT = 6
 // Room for the page number caption under each page.
 const NUM_SPACE = 26
 
@@ -48,7 +49,16 @@ async function loadOutline(doc: PDFDocumentProxy): Promise<OutlineItem[]> {
   return root ? convert(root, '') : []
 }
 
-export function PdfReader({ fileId, initialPosition, spread, controllerRef, onStatus, onOutline, showPageNumbers }: ReaderProps) {
+export function PdfReader({
+  fileId,
+  initialPosition,
+  spread,
+  controllerRef,
+  onStatus,
+  onOutline,
+  showPageNumbers,
+  compact = false,
+}: ReaderProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
@@ -61,15 +71,20 @@ export function PdfReader({ fileId, initialPosition, spread, controllerRef, onSt
   const [outline, setOutline] = useState<OutlineItem[]>([])
 
   useEffect(() => {
+    let alive = true
     const task = openPdf(fileId)
     task.promise.then(
       (d) => {
+        if (!alive) return
         setDoc(d)
         setPage((p) => Math.min(Math.max(1, p), d.numPages))
       },
-      (e: Error) => setError(e.message),
+      // destroy() below rejects the load with "Loading aborted"; that's us
+      // leaving, not a broken file.
+      (e: Error) => alive && setError(e.message),
     )
     return () => {
+      alive = false
       setDoc(null)
       void task.destroy()
     }
@@ -143,8 +158,9 @@ export function PdfReader({ fileId, initialPosition, spread, controllerRef, onSt
     ;(async () => {
       const pages = await Promise.all(view.map((n) => doc.getPage(n)))
       if (cancelled) return
-      const availW = (size.w - PAD * 2) / pages.length
-      const availH = size.h - PAD * 2 - (showPageNumbers ? NUM_SPACE : 0)
+      const pad = compact ? PAD_COMPACT : PAD
+      const availW = (size.w - pad * 2) / pages.length
+      const availH = size.h - pad * 2 - (showPageNumbers ? NUM_SPACE : 0)
       // One scale for the whole spread keeps facing pages the same height.
       const scale = Math.min(
         ...pages.map((p) => {
@@ -193,7 +209,7 @@ export function PdfReader({ fileId, initialPosition, spread, controllerRef, onSt
       cancelled = true
       tasks.forEach((t) => t.cancel())
     }
-  }, [doc, size.w, size.h, view, showPageNumbers])
+  }, [doc, size.w, size.h, view, showPageNumbers, compact])
 
   return (
     <div className="pdf-stage" ref={stageRef}>

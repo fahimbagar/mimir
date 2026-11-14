@@ -60,17 +60,12 @@ function PageJump({ status, goTo }: { status: ReaderStatus; goTo: (n: number) =>
   )
 }
 
-// iPhone Safari has no Fullscreen API for pages, so the button is hidden there.
+// iPhone Safari has no Fullscreen API for pages. Full screen mode still
+// hides the reader's own bars there; only the browser's stay.
 const canFullscreen = typeof document !== 'undefined' && document.fullscreenEnabled
 
-function toggleFullscreen() {
-  if (document.fullscreenElement) void document.exitFullscreen()
-  else
-    document.documentElement.requestFullscreen().catch(() => {
-      // Rejected when the browser refuses (e.g. no user gesture); the button
-      // state follows fullscreenchange, so there is nothing to undo.
-    })
-}
+// Below this reading-area width the margins around pages are trimmed.
+const COMPACT_WIDTH = 600
 
 export function Reader({ fileId }: { fileId: string }) {
   const [hit, setHit] = useState<{ book: Book; file: BookFile; start?: number | string } | null>(null)
@@ -78,7 +73,7 @@ export function Reader({ fileId }: { fileId: string }) {
   const [spread, setSpreadState] = useState<Spread>(getSpread)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const [surfaceWidth, setSurfaceWidth] = useState(() => window.innerWidth)
-  const [fullscreen, setFullscreen] = useState(() => document.fullscreenElement != null)
+  const [immersive, setImmersive] = useState(false)
   const [status, setStatus] = useState<ReaderStatus | null>(null)
   const controllerRef = useRef<ReaderController | null>(null)
   const [showNums, setShowNums] = useState(getPageNumbers)
@@ -172,14 +167,32 @@ export function Reader({ fileId }: { fileId: string }) {
   const shownSpread: Spread = canSpread ? spread : 1
 
   useEffect(() => {
-    const sync = () => setFullscreen(document.fullscreenElement != null)
+    // Leaving browser full screen (Esc, Android back) also leaves the mode.
+    const sync = () => {
+      if (!document.fullscreenElement) setImmersive(false)
+    }
     document.addEventListener('fullscreenchange', sync)
     return () => {
       document.removeEventListener('fullscreenchange', sync)
-      // Leaving the reader shouldn't leave the library stuck in fullscreen.
+      // Leaving the reader shouldn't leave the library stuck in full screen.
       if (document.fullscreenElement) void document.exitFullscreen()
     }
   }, [])
+
+  const toggleImmersive = () => {
+    if (immersive) {
+      setImmersive(false)
+      if (document.fullscreenElement) void document.exitFullscreen()
+      return
+    }
+    setImmersive(true)
+    if (canFullscreen && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {
+        // Refused (e.g. no user gesture): stay in the mode without browser
+        // full screen; the reader's bars are hidden either way.
+      })
+    }
+  }
 
   const togglePageNumbers = () => {
     setShowNums(!showNums)
@@ -208,9 +221,13 @@ export function Reader({ fileId }: { fileId: string }) {
         c?.prev()
         break
       case 'f':
-        if (canFullscreen) toggleFullscreen()
+        toggleImmersive()
         break
       case 'Escape':
+        if (immersive) {
+          toggleImmersive()
+          break
+        }
         if (tocOpen && window.matchMedia('(max-width: 900px)').matches) {
           setTocOpenState(false)
           break
@@ -230,7 +247,7 @@ export function Reader({ fileId }: { fileId: string }) {
   }, [])
 
   return (
-    <div className="reader">
+    <div className={`reader ${immersive ? 'is-immersive' : ''}`}>
       <header className="reader-bar">
         <div className="reader-lead">
           <button className="ghost-btn" onClick={() => navigate('/')}>
@@ -283,22 +300,11 @@ export function Reader({ fileId }: { fileId: string }) {
               ))}
             </div>
           )}
-          {canFullscreen && (
-            <button
-              className="icon-btn"
-              aria-pressed={fullscreen}
-              title={fullscreen ? 'Exit full screen (F)' : 'Full screen (F)'}
-              onClick={toggleFullscreen}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden>
-                {fullscreen ? (
-                  <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
-                ) : (
-                  <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-                )}
-              </svg>
-            </button>
-          )}
+          <button className="icon-btn" title="Full screen (F)" onClick={toggleImmersive}>
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -332,6 +338,7 @@ export function Reader({ fileId }: { fileId: string }) {
               onStatus={onStatus}
               onOutline={setOutline}
               showPageNumbers={showNums}
+              compact={immersive || surfaceWidth < COMPACT_WIDTH}
             />
           )}
           {hit?.file.format === 'epub' && (
@@ -344,6 +351,7 @@ export function Reader({ fileId }: { fileId: string }) {
               onStatus={onStatus}
               onOutline={setOutline}
               showPageNumbers={showNums}
+              compact={immersive || surfaceWidth < COMPACT_WIDTH}
             />
           )}
         </div>
@@ -353,6 +361,20 @@ export function Reader({ fileId }: { fileId: string }) {
           </svg>
         </button>
       </main>
+
+      {immersive && (
+        <div className="immersive-hud">
+          <span className="immersive-status">{status?.label}</span>
+          <button className="icon-btn immersive-exit" title="Exit full screen (F)" onClick={toggleImmersive}>
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+            </svg>
+          </button>
+          <div className="immersive-progress" aria-hidden>
+            <span style={{ width: `${Math.round((status?.progress ?? 0) * 100)}%` }} />
+          </div>
+        </div>
+      )}
 
       <footer className="reader-foot">
         <div className="progress" aria-hidden>

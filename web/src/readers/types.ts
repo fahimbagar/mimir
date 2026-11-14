@@ -34,6 +34,7 @@ export interface ReaderProps {
   onStatus: (s: ReaderStatus) => void
   onOutline: (items: OutlineItem[]) => void
   showPageNumbers: boolean
+  compact?: boolean // full screen or a small screen: trim the margins around pages
 }
 
 // Below this reading-area width two pages are unreadable, so the reader page
