@@ -774,6 +774,8 @@ button.pill:hover {
 .turn {
   flex: none;
   width: 56px;
+  /* A pinch or drag that starts on a page-turn zone zooms or pans the PDF. */
+  touch-action: none;
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -805,9 +807,19 @@ button.pill:hover {
 }
 
 .pdf-stage {
-  display: grid;
-  place-items: center;
   overflow: hidden;
+  /* Pinch and drag are handled by the reader, not the browser. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.pdf-stage.is-zoomed {
+  cursor: grab;
+}
+
+.pdf-stage.is-panning {
+  cursor: grabbing;
 }
 
 .pdf-stage .notice,
@@ -819,6 +831,13 @@ button.pill:hover {
 }
 
 .pdf-spread {
+  /* Placed and scaled from script; max-content keeps a zoomed spread from
+     shrinking to the stage width. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  transform-origin: 0 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -950,6 +969,16 @@ button.pill:hover {
   font-size: 12.5px;
   color: var(--ink-soft);
   min-height: 26px;
+}
+
+.zoom-level {
+  border: 0;
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: var(--sage-soft);
+  color: #3f5a4c;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .reader-status {

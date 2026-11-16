@@ -15,6 +15,7 @@ export interface ReaderController {
   prev(): void
   goTo(item: OutlineItem): void
   goToPage(page: number): void
+  zoom?(step: 1 | -1 | 0): void // in, out, or back to fit
 }
 
 export interface ReaderStatus {
@@ -35,6 +36,7 @@ export interface ReaderProps {
   onOutline: (items: OutlineItem[]) => void
   showPageNumbers: boolean
   compact?: boolean // full screen or a small screen: trim the margins around pages
+  onZoom?: (zoom: number) => void // 1 = fit; reported once a gesture pauses
 }
 
 // Below this reading-area width two pages are unreadable, so the reader page

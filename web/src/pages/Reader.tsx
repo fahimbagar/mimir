@@ -84,6 +84,7 @@ export function Reader({ fileId }: { fileId: string }) {
   const [outline, setOutline] = useState<OutlineItem[]>([])
   const [tocOpen, setTocOpenState] = useState(getTocOpen)
   const [magnify, setMagnify] = useState(false)
+  const [zoom, setZoom] = useState(1)
 
   // Positions are saved to the server a moment after the reader stops on a
   // page, and right away when the tab is hidden or closed.
@@ -234,6 +235,16 @@ export function Reader({ fileId }: { fileId: string }) {
         if (!showMagnifier) return
         setMagnify((m) => !m)
         break
+      case '+':
+      case '=':
+        c?.zoom?.(1)
+        break
+      case '-':
+        c?.zoom?.(-1)
+        break
+      case '0':
+        c?.zoom?.(0)
+        break
       case 'Escape':
         if (magnify) {
           setMagnify(false)
@@ -367,6 +378,7 @@ export function Reader({ fileId }: { fileId: string }) {
               showPageNumbers={showNums}
               compact={immersive || surfaceWidth < COMPACT_WIDTH}
               magnify={magnify}
+              onZoom={setZoom}
             />
           )}
           {hit?.file.format === 'epub' && (
@@ -410,6 +422,11 @@ export function Reader({ fileId }: { fileId: string }) {
         </div>
         <div className="reader-foot-row">
           <span className="reader-status">{status?.label ?? ' '}</span>
+          {zoom > 1.01 && (
+            <button className="zoom-level" title="Back to fit (0)" onClick={() => controllerRef.current?.zoom?.(0)}>
+              {Math.round(zoom * 100)}%
+            </button>
+          )}
           {status && <PageJump status={status} goTo={(n) => controllerRef.current?.goToPage(n)} />}
         </div>
       </footer>
