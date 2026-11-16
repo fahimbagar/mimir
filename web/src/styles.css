@@ -784,9 +784,13 @@ button.pill:hover {
     background 0.15s;
 }
 
-.turn:hover {
-  color: var(--sage-deep);
-  background: rgb(127 156 141 / 0.08);
+/* Touch browsers keep :hover on the last tapped element, which would leave
+   the arrow lit after a page turn. */
+@media (hover: hover) {
+  .turn:hover {
+    color: var(--sage-deep);
+    background: rgb(127 156 141 / 0.08);
+  }
 }
 
 .turn svg {
